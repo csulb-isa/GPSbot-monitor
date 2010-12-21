@@ -74,6 +74,14 @@ void CRobomagellenDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_P_GAIN, m_Pgain);
 	DDX_Control(pDX, IDC_I_GAIN, m_Igain);
 	DDX_Control(pDX, IDC_D_GAIN, m_Dgain);
+	DDX_Control(pDX, IDC_HEADING, m_heading);
+	DDX_Control(pDX, IDC_COMPASS_X, m_heading_x);
+	DDX_Control(pDX, IDC_COMPASS_Y, m_heading_y);
+	DDX_Control(pDX, IDC_COMPASS_Z, m_heading_z);
+	DDX_Control(pDX, IDC_NMEA_GGA, m_nmea_gga);
+	DDX_Control(pDX, IDC_NMEA_GLL, m_nmea_gll);
+	DDX_Control(pDX, IDC_NMEA_VTG, m_nmea_vtg);
+	DDX_Control(pDX, IDC_NMEA_RMC, m_nmea_rmc);
 }
 
 BEGIN_MESSAGE_MAP(CRobomagellenDlg, CDialogEx)
@@ -204,7 +212,7 @@ void CRobomagellenDlg::OnBnClickedComConnect()
 	if (do_once){
 		com_choice = MessageBox(L"Com port already connected.\r\n"
 				L"Disconnect from current COM device??", 
-				L"Robomagellen Message", (MB_ICONEXCLAMATION|MB_YESNO));
+				L"Robomagellen Message", (MB_ICONEXCLAMATION | MB_YESNO));
 		if (com_choice == 6){
 			WincomClose();
 			do_once = 0;
@@ -219,6 +227,7 @@ void CRobomagellenDlg::OnBnClickedComConnect()
 	{
 		// popup message to indicate error or event
 		com_choice = MessageBox(L"No Com port selected", L"Robomagellen Error", MB_ICONEXCLAMATION);
+		SetTimer(TEST, 1000, NULL);
 	}
 	else
 	{
@@ -228,7 +237,7 @@ void CRobomagellenDlg::OnBnClickedComConnect()
 			com_choice = MessageBox(L"Com port unavailable", L"Robomagellen Error", MB_ICONEXCLAMATION);
 		}
 		else{
-			SetTimer(1, 100, NULL);
+			SetTimer(PARSE_RX_DATA_TIMER_EVENT, 100, NULL);
 			do_once = 1;
 		}
 	}
@@ -282,40 +291,318 @@ void CRobomagellenDlg::OnTimer(UINT_PTR nIDEvent)
 {
 	// TODO: Add your message handler code here and/or call default
 	wchar_t data[4096] = {NULL}; 
+	// stop the timer so that the parse time does not take longer than
+	// an event timeout
 	KillTimer(nIDEvent);		
-	
-	if (ReadCom(data)){
-		static CString s;
-		s.Append(data);
-		int loc = s.FindOneOf(L"[");
-		s = s.Right((s.GetLength()-loc));
-		loc = s.FindOneOf(L"]");
-
-		// tmp only
-		m_GpsSentece.SetWindowTextW(s);
-
-		if(loc>0)
-		{
-			if (s.Find(L"[STATUS<SONAR_L1>") == 0)
-			{
-				s = s.Right((s.GetLength()-strlen("[STATUS<SONAR_L1>")));
-				loc = s.Find(L"]");
-				CString s_disp(s);
-				s_disp = s_disp.Left(loc);
-				m_Sonar1.SetWindowTextW(s_disp);
-				loc = s.Find(L"[");
-				s = s.Right((s.GetLength()-loc));
+	if (nIDEvent == PARSE_RX_DATA_TIMER_EVENT){	
+		// see if there was anything on the comport
+		if (ReadCom(data)){
+			// this will store a packet that was pulled but not complete
+			static CString s;
+			s.Append(data);
+			int loc = s.FindOneOf(L"[");
+			// left justify the packet
+			s = s.Right((s.GetLength()-loc));
+			// look for the end of a packet
+			int packets_available = 0;
+			loc = 0;
+			// how many packets are in the buffer
+			while (1){
+				loc = s.Find(L"]", loc);
+				if (loc > 0)
+					packets_available++;
+				else
+					break;
 			}
-			// else if next sensor value 'STATUS<SONAR_L2>'
-			else{
-				s = s.Right(loc);
+			// service all packets that have been recieved
+			for (int i=1; i<packets_available; i++)
+			{
+				if (s.Find(L"[STATUS<SONAR_L1>") == 0)
+				{
+					// delete the packet header and left justify the parameter
+					s = s.Right((s.GetLength()-strlen("[STATUS<SONAR_L1>")));
+					// find out how big the parameter is 
+					loc = s.Find(L"]");
+					CString s_disp(s);
+					// store the parameter in a temporary string object
+					s_disp = s_disp.Left(loc);
+					// FORMAT or just put the parameter on the debug console
+					m_Sonar1.SetWindowTextW(s_disp);
+					// find the next start of packet
+					loc = s.Find(L"[");
+					// left justify the next packet
+					s = s.Right((s.GetLength()-loc));
+				}
+				else if (s.Find(L"[STATUS<SONAR_L2>") == 0)
+				{
+					// delete the packet header and left justify the parameter
+					s = s.Right((s.GetLength()-strlen("[STATUS<SONAR_L2>")));
+					// find out how big the parameter is 
+					loc = s.Find(L"]");
+					CString s_disp(s);
+					// store the parameter in a temporary string object
+					s_disp = s_disp.Left(loc);
+					// FORMAT or just put the parameter on the debug console
+					m_Sonar2.SetWindowTextW(s_disp);
+					// find the next start of packet
+					loc = s.Find(L"[");
+					// left justify the next packet
+					s = s.Right((s.GetLength()-loc));
+				}
+				else if (s.Find(L"[STATUS<SONAR_R2>") == 0)
+				{
+					// delete the packet header and left justify the parameter
+					s = s.Right((s.GetLength()-strlen("[STATUS<SONAR_R2>")));
+					// find out how big the parameter is 
+					loc = s.Find(L"]");
+					CString s_disp(s);
+					// store the parameter in a temporary string object
+					s_disp = s_disp.Left(loc);
+					// FORMAT or just put the parameter on the debug console
+					m_Sonar3.SetWindowTextW(s_disp);
+					// find the next start of packet
+					loc = s.Find(L"[");
+					// left justify the next packet
+					s = s.Right((s.GetLength()-loc));
+				}
+				else if (s.Find(L"[STATUS<SONAR_R1>") == 0)
+				{
+					// delete the packet header and left justify the parameter
+					s = s.Right((s.GetLength()-strlen("[STATUS<SONAR_R1>")));
+					// find out how big the parameter is 
+					loc = s.Find(L"]");
+					CString s_disp(s);
+					// store the parameter in a temporary string object
+					s_disp = s_disp.Left(loc);
+					// FORMAT or just put the parameter on the debug console
+					m_Sonar4.SetWindowTextW(s_disp);
+					// find the next start of packet
+					loc = s.Find(L"[");
+					// left justify the next packet
+					s = s.Right((s.GetLength()-loc));
+				}
+				else if (s.Find(L"[STATUS<IR1>") == 0)
+				{
+					// delete the packet header and left justify the parameter
+					s = s.Right((s.GetLength()-strlen("[STATUS<IR1>")));
+					// find out how big the parameter is 
+					loc = s.Find(L"]");
+					CString s_disp(s);
+					// store the parameter in a temporary string object
+					s_disp = s_disp.Left(loc);
+					// FORMAT or just put the parameter on the debug console
+					m_Infr1.SetWindowTextW(s_disp);
+					// find the next start of packet
+					loc = s.Find(L"[");
+					// left justify the next packet
+					s = s.Right((s.GetLength()-loc));
+				}
+				else if (s.Find(L"[STATUS<IR2>") == 0)
+				{
+					// delete the packet header and left justify the parameter
+					s = s.Right((s.GetLength()-strlen("[STATUS<IR2>")));
+					// find out how big the parameter is 
+					loc = s.Find(L"]");
+					CString s_disp(s);
+					// store the parameter in a temporary string object
+					s_disp = s_disp.Left(loc);
+					// FORMAT or just put the parameter on the debug console
+					m_Infr2.SetWindowTextW(s_disp);
+					// find the next start of packet
+					loc = s.Find(L"[");
+					// left justify the next packet
+					s = s.Right((s.GetLength()-loc));
+				}
+				else if (s.Find(L"[STATUS<SPEED>") == 0)
+				{
+					// delete the packet header and left justify the parameter
+					s = s.Right((s.GetLength()-strlen("[STATUS<SPEED>")));
+					// find out how big the parameter is 
+					loc = s.Find(L"]");
+					CString s_disp(s);
+					// store the parameter in a temporary string object
+					s_disp = s_disp.Left(loc);
+					// FORMAT or just put the parameter on the debug console
+					m_TravelSpeed.SetWindowTextW(s_disp);
+					// find the next start of packet
+					loc = s.Find(L"[");
+					// left justify the next packet
+					s = s.Right((s.GetLength()-loc));
+				}
+				else if (s.Find(L"[STATUS<HEADING>") == 0)
+				{
+					// delete the packet header and left justify the parameter
+					s = s.Right((s.GetLength()-strlen("[STATUS<HEADING>")));
+					// find out how big the parameter is 
+					loc = s.Find(L"]");
+					CString s_disp(s);
+					// store the parameter in a temporary string object
+					s_disp = s_disp.Left(loc);
+					// FORMAT or just put the parameter on the debug console
+					m_heading.SetWindowTextW(s_disp);
+					// find the next start of packet
+					loc = s.Find(L"[");
+					// left justify the next packet
+					s = s.Right((s.GetLength()-loc));
+				}
+				else if (s.Find(L"[STATUS<HEADING-X>") == 0)
+				{
+					// delete the packet header and left justify the parameter
+					s = s.Right((s.GetLength()-strlen("[STATUS<HEADING-X>")));
+					// find out how big the parameter is 
+					loc = s.Find(L"]");
+					CString s_disp(s);
+					// store the parameter in a temporary string object
+					s_disp = s_disp.Left(loc);
+					// FORMAT or just put the parameter on the debug console
+					m_heading_x.SetWindowTextW(s_disp);
+					// find the next start of packet
+					loc = s.Find(L"[");
+					// left justify the next packet
+					s = s.Right((s.GetLength()-loc));
+				}
+				else if (s.Find(L"[STATUS<HEADING-Y>") == 0)
+				{
+					// delete the packet header and left justify the parameter
+					s = s.Right((s.GetLength()-strlen("[STATUS<HEADING-Y>")));
+					// find out how big the parameter is 
+					loc = s.Find(L"]");
+					CString s_disp(s);
+					// store the parameter in a temporary string object
+					s_disp = s_disp.Left(loc);
+					// FORMAT or just put the parameter on the debug console
+					m_heading_y.SetWindowTextW(s_disp);
+					// find the next start of packet
+					loc = s.Find(L"[");
+					// left justify the next packet
+					s = s.Right((s.GetLength()-loc));
+				}
+				else if (s.Find(L"[STATUS<HEADING-Z>") == 0)
+				{
+					// delete the packet header and left justify the parameter
+					s = s.Right((s.GetLength()-strlen("[STATUS<HEADING-Z>")));
+					// find out how big the parameter is 
+					loc = s.Find(L"]");
+					CString s_disp(s);
+					// store the parameter in a temporary string object
+					s_disp = s_disp.Left(loc);
+					// FORMAT or just put the parameter on the debug console
+					m_heading_z.SetWindowTextW(s_disp);
+					// find the next start of packet
+					loc = s.Find(L"[");
+					// left justify the next packet
+					s = s.Right((s.GetLength()-loc));
+				}
+				else if (s.Find(L"[STATUS<GPS-GGA>") == 0)
+				{
+					// delete the packet header and left justify the parameter
+					s = s.Right((s.GetLength()-strlen("[STATUS<GPS-GGA>")));
+					// find out how big the parameter is 
+					loc = s.Find(L"]");
+					CString s_disp(s);
+					// store the parameter in a temporary string object
+					s_disp = s_disp.Left(loc);
+					// FORMAT or just put the parameter on the debug console
+					m_nmea_gga.SetWindowTextW(s_disp);
+					// find the next start of packet
+					loc = s.Find(L"[");
+					// left justify the next packet
+					s = s.Right((s.GetLength()-loc));
+				}
+				else if (s.Find(L"[STATUS<GPS-GLL>") == 0)
+				{
+					// delete the packet header and left justify the parameter
+					s = s.Right((s.GetLength()-strlen("[STATUS<GPS-GLL>")));
+					// find out how big the parameter is 
+					loc = s.Find(L"]");
+					CString s_disp(s);
+					// store the parameter in a temporary string object
+					s_disp = s_disp.Left(loc);
+					// FORMAT or just put the parameter on the debug console
+					m_nmea_gll.SetWindowTextW(s_disp);
+					// find the next start of packet
+					loc = s.Find(L"[");
+					// left justify the next packet
+					s = s.Right((s.GetLength()-loc));
+				}
+				else if (s.Find(L"[STATUS<GPS-RMC>") == 0)
+				{
+					// delete the packet header and left justify the parameter
+					s = s.Right((s.GetLength()-strlen("[STATUS<GPS-RMC>")));
+					// find out how big the parameter is 
+					loc = s.Find(L"]");
+					CString s_disp(s);
+					// store the parameter in a temporary string object
+					s_disp = s_disp.Left(loc);
+					// FORMAT or just put the parameter on the debug console
+					m_nmea_rmc.SetWindowTextW(s_disp);
+					// find the next start of packet
+					loc = s.Find(L"[");
+					// left justify the next packet
+					s = s.Right((s.GetLength()-loc));
+				}
+				else if (s.Find(L"[STATUS<GPS-VTG>") == 0)
+				{
+					// delete the packet header and left justify the parameter
+					s = s.Right((s.GetLength()-strlen("[STATUS<GPS-VTG>")));
+					// find out how big the parameter is 
+					loc = s.Find(L"]");
+					CString s_disp(s);
+					// store the parameter in a temporary string object
+					s_disp = s_disp.Left(loc);
+					// FORMAT or just put the parameter on the debug console
+					m_nmea_vtg.SetWindowTextW(s_disp);
+					// find the next start of packet
+					loc = s.Find(L"[");
+					// left justify the next packet
+					s = s.Right((s.GetLength()-loc));
+				}
+				else if (s.Find(L"[STATUS<SERVO_STEER>") == 0)
+				{
+					// delete the packet header and left justify the parameter
+					s = s.Right((s.GetLength()-strlen("[STATUS<SERVO_STEER>")));
+					// find out how big the parameter is 
+					loc = s.Find(L"]");
+					CString s_disp(s);
+					// store the parameter in a temporary string object
+					s_disp = s_disp.Left(loc);
+					// FORMAT or just put the parameter on the debug console
+				
+					// make into hex and use setpos() to update the debug console
+
+					// find the next start of packet
+					loc = s.Find(L"[");
+					// left justify the next packet
+					s = s.Right((s.GetLength()-loc));
+				}
+				else if (s.Find(L"[STATUS<SERVO_SPEED>") == 0)
+				{
+					// delete the packet header and left justify the parameter
+					s = s.Right((s.GetLength()-strlen("[STATUS<SERVO_SPEED>")));
+					// find out how big the parameter is 
+					loc = s.Find(L"]");
+					CString s_disp(s);
+					// store the parameter in a temporary string object
+					s_disp = s_disp.Left(loc);
+					// FORMAT or just put the parameter on the debug console
+				
+					// make into hex and use setpos() to update the debug console
+
+					// find the next start of packet
+					loc = s.Find(L"[");
+					// left justify the next packet
+					s = s.Right((s.GetLength()-loc));
+				}
 			}
 		}
-		//m_GpsSentece.SetWindowTextW(data);
+		// before the exit - restart the timer
+		SetTimer(PARSE_RX_DATA_TIMER_EVENT, 100, NULL);
 	}
-	MessageBeep(0xffffffff);
-
-	SetTimer(nIDEvent, 100, NULL);
+	else if (nIDEvent == TEST){
+		SetTimer(TEST, 1000, NULL);
+		// Just for debugging to make sure the timer is working
+		MessageBeep(0xffffffff);
+	}
 
 	CDialogEx::OnTimer(nIDEvent);
 }

@@ -55,5 +55,17 @@ public:
 	CEdit m_Dgain;
 	afx_msg void OnBnClickedUpdateGain();
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
+	CEdit m_heading;
+	CEdit m_heading_x;
+	CEdit m_heading_y;
+	CEdit m_heading_z;
+	CEdit m_nmea_gga;
+	CEdit m_nmea_gll;
+	CEdit m_nmea_vtg;
+	CEdit m_nmea_rmc;
 };
+
+// Timer event IDs
+#define PARSE_RX_DATA_TIMER_EVENT	100
+#define TEST						101
 
