@@ -56,7 +56,7 @@ int WincomInit(wchar_t* port)
 
 	if(GetCommState(hComm, &dcb))
 	{
-		dcb.BaudRate = (CBR_9600);
+		dcb.BaudRate = (CBR_57600);
 		dcb.Parity   = NOPARITY;
 		dcb.StopBits = ONESTOPBIT;
 		dcb.ByteSize = 8;

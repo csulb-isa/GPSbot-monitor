@@ -305,14 +305,13 @@ void CRobomagellenDlg::OnTimer(UINT_PTR nIDEvent)
 			s = s.Right((s.GetLength()-loc));
 			// look for the end of a packet
 			int packets_available = 0;
+			int inc = 0;
 			loc = 0;
 			// how many packets are in the buffer
-			while (1){
-				loc = s.Find(L"]", loc);
-				if (loc > 0)
+			while (s[inc] != NULL){
+				if (s[inc] == ']')
 					packets_available++;
-				else
-					break;
+				inc++;
 			}
 			// service all packets that have been recieved
 			for (int i=1; i<packets_available; i++)
@@ -591,6 +590,11 @@ void CRobomagellenDlg::OnTimer(UINT_PTR nIDEvent)
 					// find the next start of packet
 					loc = s.Find(L"[");
 					// left justify the next packet
+					s = s.Right((s.GetLength()-loc));
+				}
+				else
+				{
+					loc = s.Find(L"[", 2);
 					s = s.Right((s.GetLength()-loc));
 				}
 			}
