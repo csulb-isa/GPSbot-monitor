@@ -67,5 +67,6 @@ public:
 
 // Timer event IDs
 #define PARSE_RX_DATA_TIMER_EVENT	100
+#define UPDATE_SPEED_STEER			102
 #define TEST						101
 

@@ -227,7 +227,7 @@ void CRobomagellenDlg::OnBnClickedComConnect()
 	{
 		// popup message to indicate error or event
 		com_choice = MessageBox(L"No Com port selected", L"Robomagellen Error", MB_ICONEXCLAMATION);
-		SetTimer(TEST, 1000, NULL);
+		//SetTimer(TEST, 1000, NULL);
 	}
 	else
 	{
@@ -238,6 +238,7 @@ void CRobomagellenDlg::OnBnClickedComConnect()
 		}
 		else{
 			SetTimer(PARSE_RX_DATA_TIMER_EVENT, 100, NULL);
+			SetTimer(UPDATE_SPEED_STEER, 100, NULL);
 			do_once = 1;
 		}
 	}
@@ -257,15 +258,15 @@ void CRobomagellenDlg::OnNMReleasedcaptureSpeedSlider(NMHDR *pNMHDR, LRESULT *pR
 {
 	// TODO: Add your control notification handler code here
 	// Returns an inverted value - up is negative and down is positive
-	int tmp = m_SpeedCtrl.GetPos();
-	char cmd[256] = {NULL};
-	// Invert the result
-	if (tmp < 0)
-		tmp = abs(tmp);
-	else
-		tmp -= (tmp*2);
-	sprintf(cmd, "[COMMAND<SPEED>%d]\n", tmp);
-	WriteCom(cmd);
+	//int tmp = m_SpeedCtrl.GetPos();
+	//char cmd[256] = {NULL};
+	//// Invert the result
+	//if (tmp < 0)
+	//	tmp = abs(tmp);
+	//else
+	//	tmp -= (tmp*2);
+	//sprintf(cmd, "[COMMAND<SPEED>%d]\n", tmp);
+	//WriteCom(cmd);
 	*pResult = 0;
 }
 
@@ -273,10 +274,10 @@ void CRobomagellenDlg::OnNMReleasedcaptureSpeedSlider(NMHDR *pNMHDR, LRESULT *pR
 void CRobomagellenDlg::OnNMReleasedcaptureSteerSlider(NMHDR *pNMHDR, LRESULT *pResult)
 {
 	// TODO: Add your control notification handler code here
-	int tmp = m_SteerCtrl.GetPos();
-	char cmd[256] = {NULL};
-	sprintf(cmd, "[COMMAND<STEER>%d]\n", tmp);
-	WriteCom(cmd);
+	//int tmp = m_SteerCtrl.GetPos();
+	//char cmd[256] = {NULL};
+	//sprintf(cmd, "[COMMAND<STEER>%d]\n", tmp);
+	//WriteCom(cmd);
 	*pResult = 0;
 }
 
@@ -606,6 +607,40 @@ void CRobomagellenDlg::OnTimer(UINT_PTR nIDEvent)
 		SetTimer(TEST, 1000, NULL);
 		// Just for debugging to make sure the timer is working
 		MessageBeep(0xffffffff);
+	}
+	else if (nIDEvent == UPDATE_SPEED_STEER){
+		static int steer_pos = 0;
+		static int speed_pos = 0;
+		char cmd[256] = {NULL};
+		if (steer_pos != m_SteerCtrl.GetPos()){
+			// send a steering command based in the position
+			steer_pos = m_SteerCtrl.GetPos();
+			int tmp = steer_pos;
+			// Invert the result
+			if (tmp < 0){
+				tmp = abs(tmp);
+			}
+			else{
+				tmp -= (tmp*2);
+			}
+			sprintf(cmd, "[COMMAND<STEER>%d]\n", tmp);
+			WriteCom(cmd);
+		}
+		else if (speed_pos != m_SpeedCtrl.GetPos()){
+			// send a steering command based in the position
+			speed_pos = m_SpeedCtrl.GetPos();
+			int tmp = speed_pos;
+			// Invert the result
+			if (tmp < 0){
+				tmp = abs(tmp);
+			}
+			else{
+				tmp -= (tmp*2);
+			}
+			sprintf(cmd, "[COMMAND<SPEED>%d]\n", tmp);
+			WriteCom(cmd);
+		}
+		SetTimer(UPDATE_SPEED_STEER, 50, NULL);
 	}
 
 	CDialogEx::OnTimer(nIDEvent);
